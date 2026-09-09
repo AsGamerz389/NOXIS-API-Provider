@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>NOXIS Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: #0b0d12; color: #e6e9ef; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #8a93a6; font-size: 13px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card { background: #12151c; border: 1px solid #232838; border-radius: 10px; padding: 14px 16px; }
+  .card .label { font-size: 12px; color: #8a93a6; }
+  .card .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; background: #12151c; border: 1px solid #232838; border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #1d2230; font-size: 13px; }
+  th { color: #8a93a6; font-weight: 500; }
+  .pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .healthy { background: #113322; color: #4ade80; }
+  .unavailable, .circuit_open { background: #3a1414; color: #f87171; }
+  .rate_limited, .cooldown, .checking { background: #3a2e10; color: #fbbf24; }
+  .unknown { background: #22242e; color: #9aa2b1; }
+  .type-keyless { color: #60a5fa; }
+  .type-api_key { color: #c084fc; }
+  input { background: #12151c; border: 1px solid #232838; color: #e6e9ef; padding: 6px 10px; border-radius: 6px; margin-bottom: 16px; width: 320px; }
+  #errors { margin-top: 24px; }
+  .muted { color: #8a93a6; }
+</style>
+</head>
+<body>
+  <h1>NOXIS</h1>
+  <div class="sub">Self-hosted AI gateway — aggregates legitimate provider capacity. Does not bypass quotas or create unlimited access.</div>
+
+  <input id="key" type="password" placeholder="NOXIS API key (Bearer token)" />
+
+  <div class="grid" id="summary"></div>
+
+  <table>
+    <thead>
+      <tr><th>Provider</th><th>Type</th><th>Auth</th><th>Health</th><th>Circuit</th><th>Req/min</th><th>Concurrent</th></tr>
+    </thead>
+    <tbody id="providers"></tbody>
+  </table>
+
+  <div id="errors">
+    <h3>Recent errors</h3>
+    <div id="errorsList" class="muted">—</div>
+  </div>
+
+<script>
+async function fetchJSON(path) {
+  const key = document.getElementById('key').value;
+  const headers = key ? { 'Authorization': 'Bearer ' + key } : {};
+  const res = await fetch(path, { headers });
+  if (!res.ok) throw new Error('Request failed: ' + res.status);
+  return res.json();
+}
+
+function pill(text) {
+  return `<span class="pill ${text}">${text}</span>`;
+}
+
+async function refresh() {
+  try {
+    const status = await fetchJSON('/v1/status');
+    const providers = await fetchJSON('/v1/providers');
+
+    const s = status.usage_summary || {};
+    document.getElementById('summary').innerHTML = `
+      <div class="card"><div class="label">Status</div><div class="value">${status.app} v${status.version}</div></div>
+      <div class="card"><div class="label">Sample size</div><div class="value">${s.sample_size ?? 0}</div></div>
+      <div class="card"><div class="label">Success rate</div><div class="value">${s.success_rate != null ? Math.round(s.success_rate*100)+'%' : '—'}</div></div>
+      <div class="card"><div class="label">Avg latency</div><div class="value">${s.avg_latency_ms ? Math.round(s.avg_latency_ms)+'ms' : '—'}</div></div>
+      <div class="card"><div class="label">Total tokens</div><div class="value">${s.total_tokens ?? 0}</div></div>
+    `;
+
+    document.getElementById('providers').innerHTML = providers.providers.map(p => `
+      <tr>
+        <td>${p.name}</td>
+        <td class="type-${p.type}">${p.type.toUpperCase()}</td>
+        <td>${p.auth}</td>
+        <td>${pill(p.health)}</td>
+        <td>${pill(p.circuit_state)}</td>
+        <td>${p.rate_limit.requests_last_minute}</td>
+        <td>${p.rate_limit.concurrent}</td>
+      </tr>
+    `).join('');
+
+    const errs = (s.recent_errors || []);
+    document.getElementById('errorsList').innerHTML = errs.length
+      ? errs.map(e => `${new Date(e.timestamp*1000).toLocaleTimeString()} — ${e.provider} — ${e.error_code}`).join('<br/>')
+      : 'No recent errors.';
+  } catch (e) {
+    document.getElementById('summary').innerHTML = `<div class="card"><div class="label">Error</div><div class="value">${e.message}</div></div>`;
+  }
+}
+
+document.getElementById('key').addEventListener('change', refresh);
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
