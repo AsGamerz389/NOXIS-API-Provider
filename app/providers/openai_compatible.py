@@ -17,6 +17,7 @@ import httpx
 from app.models.schemas import ChatCompletionRequest
 from app.providers.base import (
     TRANSIENT_STATUS_CODES,
+    TERMINAL_PROVIDER_STATUS_CODES,
     Provider,
     ProviderAPIError,
     ProviderResult,
@@ -41,7 +42,7 @@ class OpenAICompatibleProvider(Provider):
     def _raise_for_status(resp: httpx.Response, body_text: str | None = None) -> None:
         if resp.status_code < 400:
             return
-        retryable = resp.status_code in TRANSIENT_STATUS_CODES
+        retryable = resp.status_code in TRANSIENT_STATUS_CODES and resp.status_code not in TERMINAL_PROVIDER_STATUS_CODES
         retry_after = None
         ra_header = resp.headers.get("retry-after")
         if ra_header:

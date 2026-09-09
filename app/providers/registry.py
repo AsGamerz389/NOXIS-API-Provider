@@ -57,11 +57,24 @@ _BUILTIN_API_KEY_PROVIDERS: list[dict] = [
 ]
 
 _BUILTIN_KEYLESS_PROVIDERS: list[dict] = [
-    dict(name="pollinations", priority=50, models=["openai", "openai-large", "mistral", "llama"]),
-    dict(name="llm7", priority=55, models=[]),
-    dict(name="keylessai", priority=60, models=[]),
-    dict(name="airforce", priority=70, models=[]),
-    dict(name="ovh_ai", priority=70, models=[]),
+    # Pollinations exposes a public OpenAI-compatible endpoint without an
+    # Authorization header. Keep the base URL at the service root; the
+    # adapter supplies /openai and /models.
+    dict(name="pollinations", priority=10, base_url="https://text.pollinations.ai",
+         chat_path="/openai", models_path="/models", models=[]),
+    # KeylessAI is a public OpenAI-compatible proxy. Its own service performs
+    # provider failover; NOXIS still treats it as a normal keyless upstream.
+    dict(name="keylessai", priority=20, base_url="https://keylessai.thryx.workers.dev/v1",
+         chat_path="/chat/completions", models_path="/models", models=[]),
+    # These are optional integrations. They stay disabled unless explicitly
+    # enabled and configured, because an endpoint claiming to be free/keyless
+    # can change its authentication policy without notice.
+    dict(name="llm7", priority=30, base_url="https://api.llm7.io/v1",
+         chat_path="/chat/completions", models_path="/models", models=[]),
+    dict(name="devtoolbox", priority=40, base_url="",
+         chat_path="/chat/completions", models_path="/models", models=[]),
+    dict(name="inferenceport", priority=50, base_url="",
+         chat_path="/chat/completions", models_path="/models", models=[]),
 ]
 
 
@@ -74,55 +87,24 @@ class ProviderRegistry:
 
     # -- construction ---------------------------------------------------
     def _build_api_key_providers(self) -> None:
-        s = self.settings
-        cred_map = {
-            "groq": (s.GROQ_ENABLED, s.GROQ_API_KEY),
-            "cerebras": (s.CEREBRAS_ENABLED, s.CEREBRAS_API_KEY),
-            "openrouter": (s.OPENROUTER_ENABLED, s.OPENROUTER_API_KEY),
-            "mistral": (s.MISTRAL_ENABLED, s.MISTRAL_API_KEY),
-            "gemini": (s.GEMINI_ENABLED, s.GEMINI_API_KEY),
-            "deepseek": (s.DEEPSEEK_ENABLED, s.DEEPSEEK_API_KEY),
-            "nvidia": (s.NVIDIA_ENABLED, s.NVIDIA_API_KEY),
-            "cohere": (s.COHERE_ENABLED, s.COHERE_API_KEY),
-            "github_models": (s.GITHUB_MODELS_ENABLED, s.GITHUB_TOKEN),
-            "huggingface": (s.HUGGINGFACE_ENABLED, s.HF_TOKEN),
-        }
-        for spec in _BUILTIN_API_KEY_PROVIDERS:
-            name = spec["name"]
-            enabled, api_key = cred_map[name]
-            if not enabled:
-                continue
-            if not api_key:
-                log_event(logger, logging.WARNING, "provider_missing_key",
-                          provider=name, reason="enabled but no API key configured; skipping")
-                continue
-            cfg = ProviderConfig(
-                name=name,
-                provider_type=ProviderType.API_KEY,
-                base_url=spec["base_url"],
-                api_key=api_key,
-                enabled=True,
-                priority=spec["priority"],
-                models=[ModelSpec(name=m) for m in spec["models"]],
-                requires_api_key=True,
-                supports_streaming=True,
-                rate_limit=RateLimitConfig(requests_per_minute=60, max_concurrency=20),
-            )
-            self.providers[name] = OpenAICompatibleProvider(cfg, self.client)
+        # NOXIS free deployment: credentialed providers are intentionally
+        # excluded from the runtime registry. They cannot become fallback
+        # providers through environment variables or YAML.
+        return
 
     def _build_keyless_providers(self) -> None:
         s = self.settings
         enabled_map = {
             "pollinations": (s.POLLINATIONS_ENABLED, s.POLLINATIONS_BASE_URL),
-            "llm7": (s.LLM7_ENABLED, s.LLM7_BASE_URL),
             "keylessai": (s.KEYLESSAI_ENABLED, s.KEYLESSAI_BASE_URL),
-            "airforce": (s.AIRFORCE_ENABLED, s.AIRFORCE_BASE_URL),
-            "ovh_ai": (s.OVH_AI_ENABLED, s.OVH_AI_BASE_URL),
+            "llm7": (s.LLM7_ENABLED, s.LLM7_BASE_URL),
+            "devtoolbox": (s.DEVTOOLBOX_ENABLED, s.DEVTOOLBOX_BASE_URL),
+            "inferenceport": (s.INFERENCEPORT_ENABLED, s.INFERENCEPORT_BASE_URL),
         }
         for spec in _BUILTIN_KEYLESS_PROVIDERS:
             name = spec["name"]
             enabled, base_url = enabled_map[name]
-            if not enabled:
+            if not enabled or not base_url:
                 continue
             cfg = ProviderConfig(
                 name=name,
@@ -132,6 +114,8 @@ class ProviderRegistry:
                 enabled=True,
                 priority=spec["priority"],
                 models=[ModelSpec(name=m) for m in spec["models"]],
+                chat_path=spec.get("chat_path", "/chat/completions"),
+                models_path=spec.get("models_path", "/models"),
                 requires_api_key=False,
                 supports_streaming=True,
                 rate_limit=RateLimitConfig(requests_per_minute=20, max_concurrency=5),
@@ -152,12 +136,19 @@ class ProviderRegistry:
             if name in self.providers:
                 continue  # built-ins take precedence
             ptype = ProviderType(entry.get("type", "custom"))
-            api_key_env = entry.get("api_key_env")
+            # This build is intentionally keyless-only. YAML extensions may
+            # add keyless providers, but must never introduce credentialed
+            # providers into the gateway.
+            if ptype != ProviderType.KEYLESS:
+                log_event(logger, logging.INFO, "yaml_provider_skipped",
+                          provider=name, reason="keyless_only_mode")
+                continue
+            api_key_env = None
             api_key = None
             if api_key_env:
                 import os
                 api_key = os.environ.get(api_key_env)
-            requires_key = entry.get("requires_api_key", ptype == ProviderType.API_KEY)
+            requires_key = False
             if requires_key and not api_key:
                 log_event(logger, logging.WARNING, "yaml_provider_missing_key", provider=name)
                 continue
@@ -187,6 +178,26 @@ class ProviderRegistry:
                   count=len(self.providers), names=list(self.providers.keys()))
 
     # -- runtime verification --------------------------------------------
+    async def discover_keyless_models(self) -> None:
+        """Discover public model lists and attach them to keyless providers.
+
+        Discovery is best-effort. A provider with an explicit model list keeps
+        that list; dynamic providers get models only when their public /models
+        endpoint returns them. No credentials are added during discovery.
+        """
+        for provider in list(self.providers.values()):
+            if provider.provider_type != ProviderType.KEYLESS or provider.health == ProviderHealth.UNAVAILABLE:
+                continue
+            try:
+                models = await provider.list_models()
+                if models:
+                    provider.config.models = [ModelSpec(name=m) for m in dict.fromkeys(models) if m]
+                    log_event(logger, logging.INFO, "keyless_models_discovered",
+                              provider=provider.name, count=len(provider.config.models))
+            except Exception as exc:
+                log_event(logger, logging.WARNING, "keyless_model_discovery_failed",
+                          provider=provider.name, error=str(exc))
+
     async def verify_keyless_providers(self) -> None:
         """
         For each keyless provider: verify reachability, and heuristically

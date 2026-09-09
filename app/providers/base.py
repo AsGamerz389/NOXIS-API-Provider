@@ -98,6 +98,9 @@ class ProviderAPIError(Exception):
 
 
 TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+# Payment/authentication failures are terminal for the current provider.
+# NOXIS must never retry them as a way to bypass provider restrictions.
+TERMINAL_PROVIDER_STATUS_CODES = {401, 402, 403, 404}
 
 
 class Provider:
