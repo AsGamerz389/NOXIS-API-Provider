@@ -26,6 +26,7 @@ async def providers_list(request: Request):
     for p in state.registry.all():
         out.append({
             "name": p.name,
+            "free_keyless": p.provider_type.value == "keyless" and not p.requires_api_key,
             "type": p.provider_type.value,
             "auth": "required" if p.requires_api_key else "none",
             "enabled": p.config.enabled and not state.registry.is_admin_disabled(p.name),

@@ -5,6 +5,7 @@ import logging
 import time
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from app.api.deps import authenticate
@@ -118,7 +119,13 @@ async def _sync_response(payload: ChatCompletionRequest, request: Request, reque
         result, provider_name = await state.scheduler.execute(payload, request_id)
     except ProviderAPIError as exc:
         noxis_request_errors_total.labels(endpoint="chat_completions", error_code=str(exc.status_code)).inc()
-        raise
+        return JSONResponse(status_code=exc.status_code, content={
+            "error": {
+                "message": exc.message,
+                "type": "provider_error",
+                "code": f"NOXIS_UPSTREAM_{exc.status_code}",
+            }
+        })
     except NoxisError as exc:
         noxis_request_errors_total.labels(endpoint="chat_completions", error_code=exc.err_code).inc()
         await state.usage.record(
