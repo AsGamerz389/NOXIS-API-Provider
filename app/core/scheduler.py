@@ -28,7 +28,7 @@ from app.core.failover import CircuitBreaker, backoff_delay
 from app.core.rate_limiter import RateLimiter
 from app.core.router import Router, RoutingDecision
 from app.models.schemas import ChatCompletionRequest
-from app.providers.base import ProviderAPIError, ProviderResult
+from app.providers.base import ProviderAPIError, ProviderResult, ProviderHealth
 from app.utils.errors import ServiceUnavailableError
 from app.utils.logging import log_event
 
@@ -82,7 +82,11 @@ class Scheduler:
                           provider=provider.name, status=exc.status_code, retryable=exc.retryable,
                           attempt=attempts)
                 if not exc.retryable:
-                    raise
+                    # Terminal provider errors (including 401/402/403/404)
+                    # are never bypassed. Mark the keyless provider unavailable
+                    # for this process and safely try another eligible provider.
+                    provider.health = ProviderHealth.UNAVAILABLE
+                    continue
                 delay = backoff_delay(attempts, self.backoff_base, self.backoff_cap, exc.retry_after)
                 await asyncio.sleep(delay)
                 continue
