@@ -1,0 +1,32 @@
+# Optional extra providers, loaded in addition to the built-ins.
+# Built-in provider names (groq, cerebras, openrouter, mistral, gemini,
+# deepseek, nvidia, cohere, github_models, huggingface, pollinations,
+# llm7, keylessai, airforce, ovh_ai) take precedence over entries here.
+#
+# type: keyless | api_key | oauth | custom
+# api_key_env: name of an environment variable holding the credential.
+#              Omit (or set to null) for keyless providers.
+
+providers: []
+
+# NOTE on `models:` — a provider with an empty models list can still be
+# addressed by its exact model name in a direct request, but it will NOT
+# participate in noxis-auto / noxis-fast / noxis-smart / noxis-free
+# routing, since NOXIS has no safe way to resolve an alias to a concrete
+# upstream model name for it. List at least one model to make a provider
+# eligible for alias-based routing.
+#
+# Example:
+# providers:
+#   - name: my_custom_endpoint
+#     type: api_key
+#     base_url: https://my-inference-provider.example.com/v1
+#     api_key_env: MY_CUSTOM_PROVIDER_API_KEY
+#     enabled: true
+#     priority: 25
+#     supports_streaming: true
+#     supports_tools: false
+#     models:
+#       - name: my-model-name
+#         context_length: 32768
+#         supports_streaming: true

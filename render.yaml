@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: noxis-gateway
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: ENVIRONMENT
+        value: production
+      - key: NOXIS_MASTER_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./noxis.db
+      - key: POLLINATIONS_ENABLED
+        value: true
+      - key: GROQ_ENABLED
+        value: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_ENABLED
+        value: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+    autoDeploy: true

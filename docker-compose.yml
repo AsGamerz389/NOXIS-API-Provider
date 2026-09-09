@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  noxis:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - PORT=8000
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Optional: enable by setting REDIS_URL=redis://redis:6379/0 in .env
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  # Optional: switch DATABASE_URL to
+  # postgresql+asyncpg://noxis:noxis@postgres:5432/noxis
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noxis
+      POSTGRES_PASSWORD: noxis
+      POSTGRES_DB: noxis
+    volumes:
+      - noxis_pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    profiles: ["postgres"]
+
+volumes:
+  noxis_pg_data:
