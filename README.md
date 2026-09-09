@@ -170,11 +170,11 @@ class Provider:
 ## 6. Routing Design
 
 `GET /v1/models` lists concrete models plus the NOXIS aliases:
-`noxis-auto`, `noxis-fast`, `noxis-smart`, `noxis-free`.
+`noxis-free`.
 
-- **noxis-auto** — considers every enabled, compatible provider.
-- **noxis-fast** — sorted by administrator priority (lowest number first).
-- **noxis-smart** — prefers credentialed (`API_KEY`) providers when available.
+- **noxis-auto** — legacy alias; in keyless-only deployment it is restricted to keyless providers.
+- **noxis-fast** — legacy alias; restricted to keyless providers.
+- **noxis-smart** — legacy alias; restricted to keyless providers.
 - **noxis-free** — prefers providers that can serve the request **without**
   an administrator-supplied paid credential (keyless providers). This
   never means "unlimited" — see §9.

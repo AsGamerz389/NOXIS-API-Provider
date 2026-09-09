@@ -1,8 +1,8 @@
 services:
   - type: web
     name: noxis-gateway
+    plan: free
     env: docker
-    plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
@@ -16,12 +16,18 @@ services:
         value: sqlite+aiosqlite:///./noxis.db
       - key: POLLINATIONS_ENABLED
         value: true
-      - key: GROQ_ENABLED
+      - key: POLLINATIONS_BASE_URL
+        value: https://text.pollinations.ai
+      - key: KEYLESSAI_ENABLED
+        value: true
+      - key: KEYLESSAI_BASE_URL
+        value: https://keylessai.thryx.workers.dev/v1
+      - key: LLM7_ENABLED
         value: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: OPENROUTER_ENABLED
+      - key: DEVTOOLBOX_ENABLED
         value: false
-      - key: OPENROUTER_API_KEY
-        sync: false
+      - key: INFERENCEPORT_ENABLED
+        value: false
+      - key: ALLOW_UNAUTHENTICATED
+        value: false
     autoDeploy: true

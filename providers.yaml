@@ -9,6 +9,9 @@
 
 providers: []
 
+# KEYLESS-ONLY MODE: custom entries must use type: keyless.
+# Credentialed entries are ignored by the registry.
+
 # NOTE on `models:` — a provider with an empty models list can still be
 # addressed by its exact model name in a direct request, but it will NOT
 # participate in noxis-auto / noxis-fast / noxis-smart / noxis-free
