@@ -19,12 +19,16 @@ def is_alias(model: str) -> bool:
 
 def list_models(registry: ProviderRegistry) -> ModelListResponse:
     seen: dict[str, list[str]] = {}
+    # /v1/models is the aggregate catalog for the free/keyless gateway.
+    # Credentialed providers are intentionally omitted from this build.
     for provider in registry.enabled():
+        if provider.provider_type != ProviderType.KEYLESS:
+            continue
         for m in provider.config.models:
             seen.setdefault(m.name, []).append(provider.name)
     data = [ModelInfo(id=name, noxis_providers=providers) for name, providers in sorted(seen.items())]
-    for alias in sorted(NOXIS_ALIASES):
-        data.append(ModelInfo(id=alias, owned_by="noxis-router", noxis_providers=["auto"]))
+    for alias in sorted({"noxis-free"}):
+        data.append(ModelInfo(id=alias, owned_by="noxis-router", noxis_providers=["keyless"]))
     return ModelListResponse(data=data)
 
 
@@ -36,8 +40,8 @@ def candidate_providers_for_model(registry: ProviderRegistry, model: str):
     if model == "noxis-free":
         # Prefer providers that do not require an administrator-supplied
         # paid credential.
-        keyless = [p for p in providers if p.provider_type == ProviderType.KEYLESS]
-        return keyless or providers
+        # Keyless mode has NO credentialed fallback.
+        return [p for p in providers if p.provider_type == ProviderType.KEYLESS]
 
     if model == "noxis-auto":
         return providers
