@@ -102,22 +102,23 @@ class Settings(BaseSettings):
     HF_TOKEN: str | None = None
     HUGGINGFACE_ENABLED: bool = False
 
-    # === Keyless providers (no credential; disabled by default except one,
-    #     so the gateway "starts with only one provider configured") ===
+    # === Keyless providers ===
     POLLINATIONS_ENABLED: bool = True
-    POLLINATIONS_BASE_URL: str = "https://text.pollinations.ai/v1"
+    POLLINATIONS_BASE_URL: str = "https://text.pollinations.ai"
 
+    KEYLESSAI_ENABLED: bool = True
+    KEYLESSAI_BASE_URL: str = "https://keylessai.thryx.workers.dev/v1"
+
+    # LLM7 currently documents token-based access for its higher-limit API.
+    # Keep it opt-in so NOXIS never assumes token-required access is keyless.
     LLM7_ENABLED: bool = False
     LLM7_BASE_URL: str = "https://api.llm7.io/v1"
 
-    KEYLESSAI_ENABLED: bool = False
-    KEYLESSAI_BASE_URL: str = "https://keylessai.thryx.workers.dev/v1"
+    DEVTOOLBOX_ENABLED: bool = False
+    DEVTOOLBOX_BASE_URL: str = ""
 
-    AIRFORCE_ENABLED: bool = False
-    AIRFORCE_BASE_URL: str = "https://api.airforce/v1"
-
-    OVH_AI_ENABLED: bool = False
-    OVH_AI_BASE_URL: str = "https://api.ovh.ai/v1"
+    INFERENCEPORT_ENABLED: bool = False
+    INFERENCEPORT_BASE_URL: str = ""
 
     @property
     def gateway_keys(self) -> list[str]:

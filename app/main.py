@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     registry = ProviderRegistry(settings, client)
     registry.build()
     await registry.verify_keyless_providers()
+    await registry.discover_keyless_models()
 
     rate_limiter = RateLimiter()
     breaker = CircuitBreaker(
